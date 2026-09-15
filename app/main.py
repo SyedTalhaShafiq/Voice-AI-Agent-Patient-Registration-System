@@ -82,9 +82,9 @@ def vapi_config():
     """
     Client-safe Vapi config for the /test browser voice client.
     Values come from Railway (or local .env) environment variables
-    (VAPI_PUBLIC_KEY, VAPI_ASSISTANT_ID) — never hardcoded or typed by hand.
+    (VAPI_API_KEY, ASSISTANT_API_KEY) — never hardcoded or typed by hand.
     """
     return {
-        "publicKey": settings.vapi_public_key,
-        "assistantId": settings.vapi_assistant_id,
+        "publicKey": settings.vapi_api_key,
+        "assistantId": settings.assistant_api_key,
     }
