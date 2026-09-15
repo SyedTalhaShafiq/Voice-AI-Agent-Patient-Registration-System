@@ -1,0 +1,189 @@
+[
+  {
+    "type": "function",
+    "function": {
+      "name": "check_existing_patient",
+      "description": "Check if a patient already exists in the system by their phone number. Call this BEFORE creating a new patient to detect duplicates. Returns whether a matching record was found and the existing patient's name.",
+      "parameters": {
+        "type": "object",
+        "properties": {
+          "phone_number": {
+            "type": "string",
+            "description": "The 10-digit U.S. phone number to look up (digits only, no formatting)."
+          }
+        },
+        "required": ["phone_number"]
+      }
+    },
+    "server": {
+      "url": "https://YOUR_DEPLOYED_URL/vapi/check_existing_patient",
+      "timeoutSeconds": 10
+    }
+  },
+  {
+    "type": "function",
+    "function": {
+      "name": "create_patient",
+      "description": "Create a new patient registration record in the system. Only call this AFTER the caller has confirmed all their information is correct. Returns success with the patient ID, or an error message.",
+      "parameters": {
+        "type": "object",
+        "properties": {
+          "first_name": {
+            "type": "string",
+            "description": "Patient's first name (letters, hyphens, apostrophes only, 1-50 chars)."
+          },
+          "last_name": {
+            "type": "string",
+            "description": "Patient's last name (letters, hyphens, apostrophes only, 1-50 chars)."
+          },
+          "date_of_birth": {
+            "type": "string",
+            "description": "Date of birth in MM/DD/YYYY format. Must not be a future date."
+          },
+          "sex": {
+            "type": "string",
+            "enum": ["Male", "Female", "Other", "Decline to Answer"],
+            "description": "Patient's sex/gender identity."
+          },
+          "phone_number": {
+            "type": "string",
+            "description": "10-digit U.S. phone number (digits only)."
+          },
+          "email": {
+            "type": "string",
+            "description": "Email address (optional)."
+          },
+          "address_line_1": {
+            "type": "string",
+            "description": "Street address."
+          },
+          "address_line_2": {
+            "type": "string",
+            "description": "Apartment, suite, or unit number (optional)."
+          },
+          "city": {
+            "type": "string",
+            "description": "City name."
+          },
+          "state": {
+            "type": "string",
+            "description": "2-letter U.S. state abbreviation (e.g., CA, NY, TX)."
+          },
+          "zip_code": {
+            "type": "string",
+            "description": "5-digit ZIP or ZIP+4 (e.g., 12345 or 12345-6789)."
+          },
+          "insurance_provider": {
+            "type": "string",
+            "description": "Name of insurance company (optional)."
+          },
+          "insurance_member_id": {
+            "type": "string",
+            "description": "Insurance member/ID number, alphanumeric (optional)."
+          },
+          "preferred_language": {
+            "type": "string",
+            "description": "Preferred language, defaults to English if not provided (optional)."
+          },
+          "emergency_contact_name": {
+            "type": "string",
+            "description": "Name of emergency contact (optional)."
+          },
+          "emergency_contact_phone": {
+            "type": "string",
+            "description": "Emergency contact's 10-digit U.S. phone number (optional)."
+          }
+        },
+        "required": [
+          "first_name",
+          "last_name",
+          "date_of_birth",
+          "sex",
+          "phone_number",
+          "address_line_1",
+          "city",
+          "state",
+          "zip_code"
+        ]
+      }
+    },
+    "server": {
+      "url": "https://YOUR_DEPLOYED_URL/vapi/create_patient",
+      "timeoutSeconds": 10
+    }
+  },
+  {
+    "type": "function",
+    "function": {
+      "name": "update_patient",
+      "description": "Update an existing patient's record. Use this when a duplicate is found and the caller wants to update their information, or when the caller corrects a previously saved field. Only include the fields that need changing.",
+      "parameters": {
+        "type": "object",
+        "properties": {
+          "patient_id": {
+            "type": "string",
+            "description": "The UUID of the existing patient to update (from check_existing_patient result)."
+          },
+          "first_name": {
+            "type": "string",
+            "description": "Updated first name."
+          },
+          "last_name": {
+            "type": "string",
+            "description": "Updated last name."
+          },
+          "date_of_birth": {
+            "type": "string",
+            "description": "Updated DOB in MM/DD/YYYY format."
+          },
+          "sex": {
+            "type": "string",
+            "enum": ["Male", "Female", "Other", "Decline to Answer"]
+          },
+          "phone_number": {
+            "type": "string",
+            "description": "Updated 10-digit U.S. phone number."
+          },
+          "email": {
+            "type": "string"
+          },
+          "address_line_1": {
+            "type": "string"
+          },
+          "address_line_2": {
+            "type": "string"
+          },
+          "city": {
+            "type": "string"
+          },
+          "state": {
+            "type": "string"
+          },
+          "zip_code": {
+            "type": "string"
+          },
+          "insurance_provider": {
+            "type": "string"
+          },
+          "insurance_member_id": {
+            "type": "string"
+          },
+          "preferred_language": {
+            "type": "string"
+          },
+          "emergency_contact_name": {
+            "type": "string"
+          },
+          "emergency_contact_phone": {
+            "type": "string"
+          }
+        },
+        "required": ["patient_id"]
+      }
+    },
+    "server": {
+      "url": "https://YOUR_DEPLOYED_URL/vapi/update_patient",
+      "timeoutSeconds": 10
+    }
+  }
+]
