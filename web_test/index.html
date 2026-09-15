@@ -1,0 +1,159 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+  <title>CareCloud — Vapi Voice Test Client</title>
+  <style>
+    :root { color-scheme: light dark; }
+    * { box-sizing: border-box; }
+    body {
+      font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, sans-serif;
+      max-width: 820px; margin: 0 auto; padding: 24px; line-height: 1.5;
+      background: #0f1115; color: #e6e6e6;
+    }
+    h1 { font-size: 1.5rem; margin-bottom: 4px; }
+    .sub { color: #9aa4b2; margin-top: 0; font-size: 0.9rem; }
+    .card { background: #171a21; border: 1px solid #262b36; border-radius: 12px; padding: 18px; margin: 16px 0; }
+    label { display: block; font-size: 0.82rem; color: #9aa4b2; margin: 10px 0 4px; }
+    input {
+      width: 100%; padding: 10px 12px; border-radius: 8px; border: 1px solid #2c323d;
+      background: #0f1115; color: #e6e6e6; font-size: 0.95rem;
+    }
+    .row { display: flex; gap: 10px; flex-wrap: wrap; margin-top: 14px; }
+    button {
+      padding: 11px 20px; border-radius: 8px; border: none; font-size: 0.95rem;
+      font-weight: 600; cursor: pointer; transition: opacity .15s;
+    }
+    button:disabled { opacity: .45; cursor: not-allowed; }
+    #startBtn { background: #2ecc71; color: #06231a; }
+    #stopBtn { background: #e74c3c; color: #2a0d0a; }
+    #saveCfg { background: #3b82f6; color: #041225; }
+    .status { display: inline-flex; align-items: center; gap: 8px; font-size: 0.9rem; margin-left: 6px; }
+    .dot { width: 10px; height: 10px; border-radius: 50%; background: #6b7280; }
+    .dot.live { background: #2ecc71; box-shadow: 0 0 8px #2ecc71; }
+    .dot.connecting { background: #f1c40f; }
+    #log {
+      background: #0b0d11; border: 1px solid #262b36; border-radius: 8px; padding: 12px;
+      height: 340px; overflow-y: auto; font-family: ui-monospace, "Cascadia Code", monospace;
+      font-size: 0.82rem; white-space: pre-wrap; word-break: break-word;
+    }
+    .line { padding: 2px 0; border-bottom: 1px solid #14171d; }
+    .t-user { color: #7dd3fc; }
+    .t-assistant { color: #86efac; }
+    .t-tool { color: #fbbf24; }
+    .t-system { color: #9aa4b2; }
+    .t-error { color: #f87171; }
+    .hint { font-size: 0.8rem; color: #9aa4b2; }
+    code { background: #0b0d11; padding: 1px 5px; border-radius: 4px; }
+    a { color: #7dd3fc; }
+  </style>
+</head>
+<body>
+  <h1>🎙️ CareCloud — Vapi Voice Test Client</h1>
+  <p class="sub">Talk to the patient-intake assistant in your browser (mic + WebRTC) — no phone call needed.</p>
+
+  <div class="card">
+    <strong>1. Configuration</strong>
+    <p class="hint">
+      Get these from the Vapi dashboard: <b>Public Key</b> under API Keys (client-side, safe for browser),
+      and your <b>Assistant ID</b>. They are saved only in this browser's <code>localStorage</code> — never committed.
+    </p>
+    <label for="publicKey">Vapi Public Key</label>
+    <input id="publicKey" type="text" placeholder="pk_xxxxxxxx-xxxx-xxxx-xxxx-xxxxxxxxxxxx" autocomplete="off" />
+    <label for="assistantId">Assistant ID</label>
+    <input id="assistantId" type="text" placeholder="xxxxxxxx-xxxx-xxxx-xxxx-xxxxxxxxxxxx" autocomplete="off" />
+    <div class="row">
+      <button id="saveCfg">Save config</button>
+    </div>
+  </div>
+
+  <div class="card">
+    <strong>2. Call</strong>
+    <span class="status"><span id="dot" class="dot"></span><span id="statusText">idle</span></span>
+    <div class="row">
+      <button id="startBtn">▶ Start Call</button>
+      <button id="stopBtn" disabled>■ End Call</button>
+    </div>
+    <p class="hint">
+      Your browser will ask for microphone permission. Speak naturally — the assistant collects patient
+      details, reads them back, checks duplicates, and calls your backend tools live.
+    </p>
+  </div>
+
+  <div class="card">
+    <strong>3. Live transcript &amp; tool calls</strong>
+    <p class="hint">Watch <span class="t-tool">tool calls</span> fire (check_existing_patient / create_patient / update_patient) — cross-check against your backend logs and <code>/patients</code>.</p>
+    <div id="log"></div>
+  </div>
+
+  <script type="module">
+    import Vapi from "https://esm.sh/@vapi-ai/web@2.2.4";
+
+    const $ = (id) => document.getElementById(id);
+    const logEl = $("log");
+    let vapi = null;
+
+    // ── config persistence (localStorage, no hardcoded secrets) ──
+    $("publicKey").value = localStorage.getItem("vapi_public_key") || "";
+    $("assistantId").value = localStorage.getItem("vapi_assistant_id") || "";
+    $("saveCfg").onclick = () => {
+      localStorage.setItem("vapi_public_key", $("publicKey").value.trim());
+      localStorage.setItem("vapi_assistant_id", $("assistantId").value.trim());
+      log("system", "Config saved to localStorage.");
+    };
+
+    function log(kind, msg) {
+      const div = document.createElement("div");
+      const ts = new Date().toLocaleTimeString();
+      div.className = "line t-" + kind;
+      div.textContent = `[${ts}] ${msg}`;
+      logEl.appendChild(div);
+      logEl.scrollTop = logEl.scrollHeight;
+    }
+
+    function setStatus(state) {
+      const dot = $("dot"), txt = $("statusText");
+      dot.className = "dot" + (state === "live" ? " live" : state === "connecting" ? " connecting" : "");
+      txt.textContent = state;
+    }
+
+    function bindEvents(v) {
+      v.on("call-start", () => { setStatus("live"); log("system", "Call started."); $("startBtn").disabled = true; $("stopBtn").disabled = false; });
+      v.on("call-end", () => { setStatus("idle"); log("system", "Call ended."); $("startBtn").disabled = false; $("stopBtn").disabled = true; });
+      v.on("speech-start", () => log("system", "Assistant speaking…"));
+      v.on("speech-end", () => log("system", "Assistant paused."));
+      v.on("error", (e) => log("error", "ERROR: " + (e?.message || JSON.stringify(e))));
+      v.on("message", (m) => {
+        if (m.type === "transcript" && m.transcriptType === "final") {
+          log(m.role === "user" ? "user" : "assistant", `${m.role}: ${m.transcript}`);
+        } else if (m.type === "tool-calls" || m.type === "function-call") {
+          const calls = m.toolCalls || m.toolCallList || (m.functionCall ? [m.functionCall] : []);
+          calls.forEach((c) => {
+            const fn = c.function || c;
+            log("tool", `TOOL CALL → ${fn.name}(${typeof fn.arguments === "string" ? fn.arguments : JSON.stringify(fn.arguments)})`);
+          });
+        }
+      });
+    }
+
+    $("startBtn").onclick = async () => {
+      const key = ($("publicKey").value || "").trim();
+      const assistant = ($("assistantId").value || "").trim();
+      if (!key || !assistant) { log("error", "Enter both Public Key and Assistant ID, then Save config."); return; }
+      try {
+        setStatus("connecting");
+        log("system", "Requesting microphone & connecting to Vapi…");
+        vapi = new Vapi(key);
+        bindEvents(vapi);
+        await vapi.start(assistant);
+      } catch (e) {
+        setStatus("idle");
+        log("error", "Failed to start: " + (e?.message || e));
+      }
+    };
+
+    $("stopBtn").onclick = () => { if (vapi) vapi.stop(); };
+  </script>
+</body>
+</html>

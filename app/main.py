@@ -1,10 +1,11 @@
 """FastAPI application entry point — wires routes, creates tables, seeds data."""
 
 import logging
+import os
 import sys
 
 from fastapi import FastAPI, Request
-from fastapi.responses import JSONResponse
+from fastapi.responses import FileResponse, JSONResponse
 
 from app.database import Base, SessionLocal, engine
 from app.api.routes import router as patient_router
@@ -59,3 +60,17 @@ async def unhandled_exception_handler(request: Request, exc: Exception):
 @app.get("/health", tags=["meta"])
 def health_check():
     return {"status": "ok"}
+
+
+# ── browser voice test client ────────────────────────────────────────
+# Serves web_test/index.html so you can talk to the Vapi assistant in the
+# browser (mic + WebRTC) without a phone call. Served over localhost so the
+# browser grants microphone access (a secure context).
+_WEB_TEST_FILE = os.path.join(
+    os.path.dirname(os.path.dirname(__file__)), "web_test", "index.html"
+)
+
+
+@app.get("/test", tags=["meta"], include_in_schema=False)
+def voice_test_client():
+    return FileResponse(_WEB_TEST_FILE)
