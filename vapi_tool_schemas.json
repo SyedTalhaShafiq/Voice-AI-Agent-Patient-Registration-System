@@ -16,7 +16,7 @@
       }
     },
     "server": {
-      "url": "https://YOUR_DEPLOYED_URL/vapi/check_existing_patient",
+      "url": "https://voice-ai-agent-patient-registration-system-production-bfa4.up.railway.app/vapi/check_existing_patient",
       "timeoutSeconds": 10
     }
   },
@@ -108,7 +108,7 @@
       }
     },
     "server": {
-      "url": "https://YOUR_DEPLOYED_URL/vapi/create_patient",
+      "url": "https://voice-ai-agent-patient-registration-system-production-bfa4.up.railway.app/vapi/create_patient",
       "timeoutSeconds": 10
     }
   },
@@ -182,7 +182,7 @@
       }
     },
     "server": {
-      "url": "https://YOUR_DEPLOYED_URL/vapi/update_patient",
+      "url": "https://voice-ai-agent-patient-registration-system-production-bfa4.up.railway.app/vapi/update_patient",
       "timeoutSeconds": 10
     }
   }
