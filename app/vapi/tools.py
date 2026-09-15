@@ -43,7 +43,7 @@ async def check_existing_patient(request: Request, db: Session = Depends(get_db)
     Returns whether a matching record already exists.
     """
     body = await request.json()
-    args = _extract_args(body)
+    tool_call_id, args = _extract_tool_call(body)
     phone = args.get("phone_number", "")
     digits = _phone_digits(phone)
 
@@ -69,7 +69,7 @@ async def check_existing_patient(request: Request, db: Session = Depends(get_db)
         )
         logger.info("Duplicate check: phone=%s → no match", digits)
 
-    return {"result": result}
+    return _vapi_result(tool_call_id, result)
 
 
 # ── create_patient ───────────────────────────────────────────────────
@@ -80,13 +80,13 @@ async def create_patient_vapi(request: Request, db: Session = Depends(get_db)):
     Vapi tool: Create a new patient record after caller confirmation.
     """
     body = await request.json()
-    args = _extract_args(body)
+    tool_call_id, args = _extract_tool_call(body)
 
     # Parse date of birth
     dob = _parse_dob(args.get("date_of_birth", ""))
     if dob is None:
         logger.warning("create_patient: invalid date_of_birth=%s", args.get("date_of_birth"))
-        return {"result": "ERROR (internal status, never say this word aloud): The date of birth wasn't understood. Ask the caller to repeat their date of birth, including the month, day, and year."}
+        return _vapi_result(tool_call_id, "ERROR (internal status, never say this word aloud): The date of birth wasn't understood. Ask the caller to repeat their date of birth, including the month, day, and year.")
 
     # Build PatientCreate payload
     try:
@@ -110,7 +110,7 @@ async def create_patient_vapi(request: Request, db: Session = Depends(get_db)):
         )
     except Exception as exc:
         logger.warning("create_patient: validation failed: %s", exc)
-        return {"result": f"ERROR (internal status, never say this word aloud): Some details didn't pass validation. Gently ask the caller to re-check the affected information and repeat it. Internal detail, never read aloud: {exc}"}
+        return _vapi_result(tool_call_id, f"ERROR (internal status, never say this word aloud): Some details didn't pass validation. Gently ask the caller to re-check the affected information and repeat it. Internal detail, never read aloud: {exc}")
 
     # Persist
     patient = Patient(**payload.model_dump())
@@ -121,7 +121,7 @@ async def create_patient_vapi(request: Request, db: Session = Depends(get_db)):
     except Exception:
         db.rollback()
         logger.exception("create_patient: database write failed")
-        return {"result": "ERROR (internal status, never say this word aloud): Saving the record failed. Apologize to the caller, let them know there was a problem on our end, and offer to try again or have them call back."}
+        return _vapi_result(tool_call_id, "ERROR (internal status, never say this word aloud): Saving the record failed. Apologize to the caller, let them know there was a problem on our end, and offer to try again or have them call back.")
 
     # Log final payload as JSON lines for inspection
     logger.info(
@@ -137,13 +137,14 @@ async def create_patient_vapi(request: Request, db: Session = Depends(get_db)):
         )
     )
 
-    return {
-        "result": (
+    return _vapi_result(
+        tool_call_id,
+        (
             "SUCCESS (internal status, never say this word aloud): "
             f"The registration was saved. Warmly let {patient.first_name} know they're all set. "
             "Never read any ID or system detail aloud."
-        )
-    }
+        ),
+    )
 
 
 # ── update_patient ───────────────────────────────────────────────────
@@ -154,7 +155,7 @@ async def update_patient_vapi(request: Request, db: Session = Depends(get_db)):
     Vapi tool: Update an existing patient record.
     """
     body = await request.json()
-    args = _extract_args(body)
+    tool_call_id, args = _extract_tool_call(body)
 
     patient_id = args.get("patient_id", "")
     patient = db.query(Patient).filter(
@@ -163,7 +164,7 @@ async def update_patient_vapi(request: Request, db: Session = Depends(get_db)):
     ).first()
 
     if not patient:
-        return {"result": "ERROR (internal status, never say this word aloud): That record could not be found. Ask the caller to confirm their details so you can look again."}
+        return _vapi_result(tool_call_id, "ERROR (internal status, never say this word aloud): That record could not be found. Ask the caller to confirm their details so you can look again.")
 
     # Build partial update dict
     updates = {}
@@ -180,18 +181,18 @@ async def update_patient_vapi(request: Request, db: Session = Depends(get_db)):
     if args.get("date_of_birth"):
         dob = _parse_dob(args["date_of_birth"])
         if dob is None:
-            return {"result": "ERROR (internal status, never say this word aloud): The date of birth wasn't understood. Ask the caller to repeat their date of birth, including the month, day, and year."}
+            return _vapi_result(tool_call_id, "ERROR (internal status, never say this word aloud): The date of birth wasn't understood. Ask the caller to repeat their date of birth, including the month, day, and year.")
         updates["date_of_birth"] = dob
 
     if not updates:
-        return {"result": "ERROR (internal status, never say this word aloud): No changes were provided. Ask the caller what they'd like to update."}
+        return _vapi_result(tool_call_id, "ERROR (internal status, never say this word aloud): No changes were provided. Ask the caller what they'd like to update.")
 
     # Validate via PatientUpdate
     try:
         validated = PatientUpdate(**updates)
     except Exception as exc:
         logger.warning("update_patient: validation failed: %s", exc)
-        return {"result": f"ERROR (internal status, never say this word aloud): Some details didn't pass validation. Gently ask the caller to re-check the affected information. Internal detail, never read aloud: {exc}"}
+        return _vapi_result(tool_call_id, f"ERROR (internal status, never say this word aloud): Some details didn't pass validation. Gently ask the caller to re-check the affected information. Internal detail, never read aloud: {exc}")
 
     for field, value in validated.model_dump(exclude_unset=True).items():
         setattr(patient, field, value)
@@ -202,7 +203,7 @@ async def update_patient_vapi(request: Request, db: Session = Depends(get_db)):
     except Exception:
         db.rollback()
         logger.exception("update_patient: database write failed")
-        return {"result": "ERROR (internal status, never say this word aloud): Updating the record failed. Apologize to the caller and offer to try again or have them call back."}
+        return _vapi_result(tool_call_id, "ERROR (internal status, never say this word aloud): Updating the record failed. Apologize to the caller and offer to try again or have them call back.")
 
     logger.info(
         json.dumps(
@@ -216,29 +217,55 @@ async def update_patient_vapi(request: Request, db: Session = Depends(get_db)):
         )
     )
 
-    return {
-        "result": (
+    return _vapi_result(
+        tool_call_id,
+        (
             "SUCCESS (internal status, never say this word aloud): "
             f"The update was saved. Let {patient.first_name} know their information has been updated. "
             "Never read any ID or system detail aloud."
-        )
-    }
+        ),
+    )
 
 
-# ── helper ────────────────────────────────────────────────────────────
+# ── Vapi payload helpers ─────────────────────────────────────────────
 
-def _extract_args(body: dict) -> dict:
+def _extract_tool_call(body: dict):
     """
-    Extract tool-call arguments from the Vapi webhook payload.
-    Vapi sends: { "message": { "toolCallList": [{ "function": { "name": ..., "arguments": "..." } }] } }
+    Parse a Vapi tool-call webhook and return (tool_call_id, args_dict).
+
+    Vapi's documented shape places the call id and arguments (an object) at the
+    top level of each toolCallList entry:
+        { "message": { "toolCallList": [ { "id": ..., "name": ..., "arguments": {...} } ] } }
+    Older/alternate shapes nest them under ".function" with arguments as a JSON
+    string. Both are handled here so the endpoint works with real calls and tests.
     """
     try:
-        tool_calls = body.get("message", {}).get("toolCallList", [])
-        if tool_calls:
-            raw_args = tool_calls[0].get("function", {}).get("arguments", "{}")
-            if isinstance(raw_args, str):
-                return json.loads(raw_args)
-            return raw_args
-    except (json.JSONDecodeError, AttributeError, IndexError) as exc:
-        logger.warning("_extract_args: failed to parse Vapi payload: %s", exc)
-    return {}
+        message = body.get("message", {}) or {}
+        calls = message.get("toolCallList") or message.get("toolCalls") or []
+        if not calls:
+            return None, {}
+        call = calls[0] or {}
+        tool_call_id = call.get("id")
+        fn = call.get("function", {}) or {}
+        # arguments may live at the top level (object) or under .function (string/object)
+        raw_args = call.get("arguments")
+        if raw_args is None:
+            raw_args = fn.get("arguments", {})
+        if isinstance(raw_args, str):
+            raw_args = json.loads(raw_args or "{}")
+        return tool_call_id, (raw_args or {})
+    except (json.JSONDecodeError, AttributeError, IndexError, TypeError) as exc:
+        logger.warning("_extract_tool_call: failed to parse Vapi payload: %s", exc)
+        return None, {}
+
+
+def _vapi_result(tool_call_id, text: str) -> dict:
+    """
+    Wrap a caller-facing message in Vapi's expected tool response envelope:
+        { "results": [ { "toolCallId": ..., "result": ... } ] }
+    A top-level "result" key is also included for backward-compatible clients/tests.
+    """
+    return {
+        "results": [{"toolCallId": tool_call_id, "result": text}],
+        "result": text,
+    }

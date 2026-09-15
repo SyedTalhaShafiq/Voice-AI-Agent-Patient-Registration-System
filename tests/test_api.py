@@ -299,3 +299,40 @@ class TestVapiTools:
         # Verify update
         get_resp = client.get(f"/patients/{pid}")
         assert get_resp.json()["data"]["city"] == "Updated City"
+
+    def test_create_patient_real_vapi_shape(self, client):
+        """Vapi's documented webhook puts id/name/arguments at the top level of
+        each toolCallList entry, with arguments as an OBJECT (not a JSON string).
+        The handler must read that shape and persist the record."""
+        payload = {
+            "message": {
+                "type": "tool-calls",
+                "toolCallList": [
+                    {
+                        "id": "toolu_realshape_123",
+                        "name": "create_patient",
+                        "arguments": {
+                            "first_name": "Real",
+                            "last_name": "Shape",
+                            "date_of_birth": "09/09/1990",
+                            "sex": "Female",
+                            "phone_number": "5554443210",
+                            "address_line_1": "1 Vapi Way",
+                            "city": "Seattle",
+                            "state": "WA",
+                            "zip_code": "98101",
+                        },
+                    }
+                ],
+            }
+        }
+        resp = client.post("/vapi/create_patient", json=payload)
+        assert resp.status_code == 200
+        body = resp.json()
+        # Vapi-required envelope
+        assert body["results"][0]["toolCallId"] == "toolu_realshape_123"
+        assert "SUCCESS" in body["results"][0]["result"]
+        # And it must actually be saved in the DB
+        list_resp = client.get("/patients?phone_number=5554443210")
+        assert len(list_resp.json()["data"]) == 1
+        assert list_resp.json()["data"][0]["first_name"] == "Real"
