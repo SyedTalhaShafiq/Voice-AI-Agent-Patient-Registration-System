@@ -1,0 +1,12 @@
+{
+  "type": "object",
+  "properties": {
+    "phone_number": {
+      "type": "string",
+      "description": "The 10-digit U.S. phone number to look up (digits only, e.g. 5551234567)."
+    }
+  },
+  "required": [
+    "phone_number"
+  ]
+}

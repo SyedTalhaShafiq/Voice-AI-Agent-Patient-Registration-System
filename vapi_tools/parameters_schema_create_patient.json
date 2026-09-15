@@ -1,0 +1,86 @@
+{
+  "type": "object",
+  "properties": {
+    "first_name": {
+      "type": "string",
+      "description": "Patient first name (letters, hyphens, spaces only, 1-50 chars)."
+    },
+    "last_name": {
+      "type": "string",
+      "description": "Patient last name (letters, hyphens, spaces only, 1-50 chars)."
+    },
+    "date_of_birth": {
+      "type": "string",
+      "description": "Date of birth in MM/DD/YYYY format. Must not be in the future."
+    },
+    "sex": {
+      "type": "string",
+      "enum": [
+        "Male",
+        "Female",
+        "Other",
+        "Decline to Answer"
+      ],
+      "description": "Patient sex or gender identity."
+    },
+    "phone_number": {
+      "type": "string",
+      "description": "10-digit U.S. phone number."
+    },
+    "address_line_1": {
+      "type": "string",
+      "description": "Street address (number and street name)."
+    },
+    "city": {
+      "type": "string",
+      "description": "City name."
+    },
+    "state": {
+      "type": "string",
+      "description": "2-letter U.S. state abbreviation (e.g. CA, NY, TX)."
+    },
+    "zip_code": {
+      "type": "string",
+      "description": "5-digit ZIP code or ZIP+4 (e.g. 12345 or 12345-6789)."
+    },
+    "email": {
+      "type": "string",
+      "description": "Optional email address. Omit or pass null if not provided."
+    },
+    "address_line_2": {
+      "type": "string",
+      "description": "Optional apartment, suite, or unit number. Omit or pass null if not provided."
+    },
+    "insurance_provider": {
+      "type": "string",
+      "description": "Optional name of insurance carrier. Omit or pass null if not provided."
+    },
+    "insurance_member_id": {
+      "type": "string",
+      "description": "Optional insurance member ID. Omit or pass null if not provided."
+    },
+    "preferred_language": {
+      "type": "string",
+      "description": "Optional preferred language, defaults to English if not provided."
+    },
+    "emergency_contact_name": {
+      "type": "string",
+      "description": "Optional emergency contact full name. Omit or pass null if not provided."
+    },
+    "emergency_contact_phone": {
+      "type": "string",
+      "description": "Optional 10-digit emergency contact phone number. Omit or pass null if not provided."
+    }
+  },
+  "required": [
+    "first_name",
+    "last_name",
+    "date_of_birth",
+    "sex",
+    "phone_number",
+    "address_line_1",
+    "city",
+    "state",
+    "zip_code"
+  ]
+}

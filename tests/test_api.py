@@ -336,3 +336,214 @@ class TestVapiTools:
         list_resp = client.get("/patients?phone_number=5554443210")
         assert len(list_resp.json()["data"]) == 1
         assert list_resp.json()["data"][0]["first_name"] == "Real"
+
+    def test_universal_webhook_at_vapi_root(self, client):
+        """Vapi Assistant Server URL set to /vapi triggers tool execution via dispatcher."""
+        payload = {
+            "message": {
+                "type": "tool-calls",
+                "toolCallList": [
+                    {
+                        "id": "call_webhook_1",
+                        "name": "create_patient",
+                        "arguments": {
+                            "first_name": "Webhook",
+                            "last_name": "Caller",
+                            "date_of_birth": "04/20/1985",
+                            "sex": "Female",
+                            "phone_number": "5559991122",
+                            "address_line_1": "100 Server Road",
+                            "city": "Denver",
+                            "state": "CO",
+                            "zip_code": "80201",
+                        },
+                    }
+                ],
+            }
+        }
+        resp = client.post("/vapi", json=payload)
+        assert resp.status_code == 200
+        data = resp.json()
+        assert data["results"][0]["toolCallId"] == "call_webhook_1"
+        assert "SUCCESS" in data["results"][0]["result"]
+
+        saved = client.get("/patients?phone_number=5559991122").json()["data"]
+        assert len(saved) == 1
+        assert saved[0]["first_name"] == "Webhook"
+
+    def test_root_post_and_webhook_alias(self, client):
+        """Assistant Server URL set to / or /webhook also dispatches successfully."""
+        payload = {
+            "message": {
+                "type": "tool-calls",
+                "toolCallList": [
+                    {
+                        "id": "call_alias_1",
+                        "name": "check_existing_patient",
+                        "arguments": {"phone_number": "5559991122"},
+                    }
+                ],
+            }
+        }
+        # POST /webhook
+        resp_webhook = client.post("/webhook", json=payload)
+        assert resp_webhook.status_code == 200
+        assert "DUPLICATE_FOUND" in resp_webhook.json()["results"][0]["result"]
+
+        # POST /
+        resp_root = client.post("/", json=payload)
+        assert resp_root.status_code == 200
+        assert "DUPLICATE_FOUND" in resp_root.json()["results"][0]["result"]
+
+    def test_batched_tool_calls(self, client):
+        """Vapi can send multiple tool calls in a single toolCallList."""
+        payload = {
+            "message": {
+                "type": "tool-calls",
+                "toolCallList": [
+                    {
+                        "id": "call_batch_1",
+                        "name": "check_existing_patient",
+                        "arguments": {"phone_number": "5550009999"},
+                    },
+                    {
+                        "id": "call_batch_2",
+                        "name": "create_patient",
+                        "arguments": {
+                            "first_name": "Batch",
+                            "last_name": "Patient",
+                            "date_of_birth": "1991-07-23",
+                            "sex": "Male",
+                            "phone_number": "5550009999",
+                            "address_line_1": "200 Batch Way",
+                            "city": "Boston",
+                            "state": "MA",
+                            "zip_code": "02108",
+                        },
+                    },
+                ],
+            }
+        }
+        resp = client.post("/vapi", json=payload)
+        assert resp.status_code == 200
+        results = resp.json()["results"]
+        assert len(results) == 2
+        assert results[0]["toolCallId"] == "call_batch_1"
+        assert "NO_DUPLICATE" in results[0]["result"]
+        assert results[1]["toolCallId"] == "call_batch_2"
+        assert "SUCCESS" in results[1]["result"]
+
+    def test_vapi_lifecycle_events_return_ok(self, client):
+        """Non-tool-call events from Vapi should return HTTP 200 {status: ok}."""
+        for event_type in ["status-update", "speech-update", "transcript", "end-of-call-report"]:
+            payload = {"message": {"type": event_type, "call": {"id": "call_123"}}}
+            resp = client.post("/vapi", json=payload)
+            assert resp.status_code == 200
+            assert resp.json().get("status") == "ok"
+
+    def test_create_patient_with_voice_placeholders(self, client):
+        """LLMs passing 'not provided', 'none', 'n/a' for optional fields must not crash validation."""
+        payload = {
+            "message": {
+                "type": "tool-calls",
+                "toolCallList": [
+                    {
+                        "id": "call_ph_1",
+                        "name": "create_patient",
+                        "arguments": {
+                            "first_name": "Grace",
+                            "last_name": "Hopper",
+                            "date_of_birth": "12/09/1906",
+                            "sex": "Female",
+                            "phone_number": "5551239876",
+                            "address_line_1": "1 Navy Pier",
+                            "address_line_2": "none",
+                            "city": "New York",
+                            "state": "NY",
+                            "zip_code": "10001",
+                            "email": "not provided",
+                            "insurance_provider": "not provided",
+                            "insurance_member_id": "none",
+                            "preferred_language": "English",
+                            "emergency_contact_name": "not provided",
+                            "emergency_contact_phone": "not provided",
+                        },
+                    }
+                ],
+            }
+        }
+        resp = client.post("/vapi/create_patient", json=payload)
+        assert resp.status_code == 200
+        assert "SUCCESS" in resp.json()["results"][0]["result"]
+
+        patient = client.get("/patients?phone_number=5551239876").json()["data"][0]
+        assert patient["email"] is None
+        assert patient["emergency_contact_phone"] is None
+        assert patient["insurance_provider"] is None
+
+    def test_create_patient_full_state_and_conversational_sex(self, client):
+        """Full state name 'California' converts to 'CA', 'man' converts to 'Male'."""
+        payload = {
+            "message": {
+                "type": "tool-calls",
+                "toolCallList": [
+                    {
+                        "id": "call_full_state",
+                        "name": "create_patient",
+                        "arguments": {
+                            "first_name": "Alan",
+                            "last_name": "Turing",
+                            "date_of_birth": "06/23/1912",
+                            "sex": "man",
+                            "phone_number": "5553214567",
+                            "address_line_1": "42 Bletchley Park",
+                            "city": "San Francisco",
+                            "state": "California",
+                            "zip_code": "94102",
+                        },
+                    }
+                ],
+            }
+        }
+        resp = client.post("/vapi/create_patient", json=payload)
+        assert resp.status_code == 200
+        assert "SUCCESS" in resp.json()["results"][0]["result"]
+
+        patient = client.get("/patients?phone_number=5553214567").json()["data"][0]
+        assert patient["state"] == "CA"
+        assert patient["sex"] == "Male"
+
+    def test_create_patient_camel_case_args(self, client):
+        """CamelCase arguments commonly emitted by LLMs are normalized to snake_case."""
+        payload = {
+            "message": {
+                "type": "tool-calls",
+                "toolCallList": [
+                    {
+                        "id": "call_camel",
+                        "name": "create_patient",
+                        "arguments": {
+                            "firstName": "Ada",
+                            "lastName": "Lovelace",
+                            "dateOfBirth": "12/10/1915",
+                            "sex": "woman",
+                            "phoneNumber": "5558889900",
+                            "addressLine1": "12 St James Square",
+                            "city": "Austin",
+                            "state": "Texas",
+                            "zipCode": "78701",
+                        },
+                    }
+                ],
+            }
+        }
+        resp = client.post("/vapi", json=payload)
+        assert resp.status_code == 200
+        assert "SUCCESS" in resp.json()["results"][0]["result"]
+
+        patient = client.get("/patients?phone_number=5558889900").json()["data"][0]
+        assert patient["first_name"] == "Ada"
+        assert patient["last_name"] == "Lovelace"
+        assert patient["state"] == "TX"
+        assert patient["sex"] == "Female"
+

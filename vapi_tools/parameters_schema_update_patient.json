@@ -1,0 +1,82 @@
+{
+  "type": "object",
+  "properties": {
+    "patient_id": {
+      "type": "string",
+      "description": "The UUID of the existing patient to update (from check_existing_patient)."
+    },
+    "first_name": {
+      "type": "string",
+      "description": "Updated first name."
+    },
+    "last_name": {
+      "type": "string",
+      "description": "Updated last name."
+    },
+    "date_of_birth": {
+      "type": "string",
+      "description": "Updated date of birth in MM/DD/YYYY format."
+    },
+    "sex": {
+      "type": "string",
+      "enum": [
+        "Male",
+        "Female",
+        "Other",
+        "Decline to Answer"
+      ],
+      "description": "Updated sex/gender identity."
+    },
+    "phone_number": {
+      "type": "string",
+      "description": "Updated 10-digit U.S. phone number."
+    },
+    "email": {
+      "type": "string",
+      "description": "Updated email address."
+    },
+    "address_line_1": {
+      "type": "string",
+      "description": "Updated street address."
+    },
+    "address_line_2": {
+      "type": "string",
+      "description": "Updated apartment/suite/unit."
+    },
+    "city": {
+      "type": "string",
+      "description": "Updated city."
+    },
+    "state": {
+      "type": "string",
+      "description": "Updated 2-letter state abbreviation."
+    },
+    "zip_code": {
+      "type": "string",
+      "description": "Updated ZIP code."
+    },
+    "insurance_provider": {
+      "type": "string",
+      "description": "Updated insurance provider."
+    },
+    "insurance_member_id": {
+      "type": "string",
+      "description": "Updated insurance member ID."
+    },
+    "preferred_language": {
+      "type": "string",
+      "description": "Updated preferred language."
+    },
+    "emergency_contact_name": {
+      "type": "string",
+      "description": "Updated emergency contact name."
+    },
+    "emergency_contact_phone": {
+      "type": "string",
+      "description": "Updated emergency contact phone number."
+    }
+  },
+  "required": [
+    "patient_id"
+  ]
+}

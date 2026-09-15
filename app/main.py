@@ -9,7 +9,7 @@ from fastapi.responses import FileResponse, JSONResponse
 
 from app.database import Base, SessionLocal, engine
 from app.api.routes import router as patient_router
-from app.vapi.tools import router as vapi_router
+from app.vapi.tools import router as vapi_router, handle_vapi_webhook
 from app.seed import seed_patients
 from app.config import settings
 
@@ -42,6 +42,10 @@ app = FastAPI(
 # Register routers
 app.include_router(patient_router)
 app.include_router(vapi_router)
+
+# Also expose universal webhook on /webhook and root POST for maximum Vapi compatibility
+app.add_api_route("/webhook", handle_vapi_webhook, methods=["POST"], tags=["vapi-tools"])
+app.add_api_route("/", handle_vapi_webhook, methods=["POST"], tags=["vapi-tools"])
 
 
 # ── global exception handler ─────────────────────────────────────────

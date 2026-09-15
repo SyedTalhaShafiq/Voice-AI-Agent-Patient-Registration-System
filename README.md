@@ -125,14 +125,28 @@ ngrok http 8000
 
 Copy the `https://xxxx.ngrok-free.app` URL and replace `YOUR_DEPLOYED_URL` in `vapi_tool_schemas.json`.
 
-### 4. Configure Vapi Assistant
+### 4. Configure Vapi Assistant & Tools
 
+You can configure Vapi either automatically via script or manually in the Dashboard:
+
+#### Option A: Automated Configuration (Fastest)
+Run the setup script with your Vapi **Private API Key** (from [dashboard.vapi.ai/api-keys](https://dashboard.vapi.ai/api-keys)):
+```bash
+python scripts/setup_vapi.py --api-key YOUR_PRIVATE_VAPI_KEY
+```
+This automatically registers the 3 tools with their schemas and URLs, attaches them to your assistant (`63210c5e-8720-4026-8641-1a10d0c0b508`), sets the Server URL, and syncs the system prompt.
+
+#### Option B: Manual Dashboard Configuration
 1. Log into [Vapi Dashboard](https://dashboard.vapi.ai)
-2. Create a new assistant
-3. Paste the system prompt from `vapi_prompt.md` into the System Prompt field
-4. Add each tool from `vapi_tool_schemas.json` (with your deployed URL)
-5. Provision a phone number via Vapi and link it to the assistant
-6. Call the number to test!
+2. Open your Assistant:
+   - **System Prompt**: Copy and paste the entire prompt from [`vapi_prompt.md`](vapi_prompt.md).
+   - **Server URL**: Set to `https://voice-ai-agent-patient-registration-system-production-b5a4.up.railway.app/vapi`.
+3. Under **Tools**, create/edit each function tool:
+   - `check_existing_patient`: Copy schema from `vapi_tools/parameters_schema_check_existing_patient.json` into the Parameters editor.
+   - `create_patient`: Copy schema from `vapi_tools/parameters_schema_create_patient.json` into the Parameters editor.
+   - `update_patient`: Copy schema from `vapi_tools/parameters_schema_update_patient.json` into the Parameters editor.
+   - Set Server URL on each tool to `https://voice-ai-agent-patient-registration-system-production-b5a4.up.railway.app/vapi/<tool_name>` (or leave blank to inherit Assistant Server URL).
+4. Save the Assistant and test!
 
 ---
 
@@ -160,10 +174,12 @@ All responses use a consistent envelope:
 
 ## Vapi Integration
 
-### Tool Endpoints (called by Vapi during a live call)
+### Webhook & Tool Endpoints
 
 | Endpoint | Purpose |
 |---|---|
+| `POST /vapi` | Universal webhook dispatcher for Assistant Server URL (handles `tool-calls` & lifecycle events) |
+| `POST /webhook` | Alias for universal webhook |
 | `POST /vapi/check_existing_patient` | Duplicate detection by phone number |
 | `POST /vapi/create_patient` | Persist a confirmed new patient |
 | `POST /vapi/update_patient` | Update an existing patient's record |
