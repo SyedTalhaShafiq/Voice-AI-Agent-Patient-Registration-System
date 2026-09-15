@@ -1,0 +1,21 @@
+{
+  "type": "function",
+  "function": {
+    "name": "check_existing_patient",
+    "description": "Check if a patient already exists in the system by their phone number. Call this BEFORE creating a new patient to detect duplicates. Returns whether a matching record was found and the existing patient's name.",
+    "parameters": {
+      "type": "object",
+      "properties": {
+        "phone_number": {
+          "type": "string",
+          "description": "The 10-digit U.S. phone number to look up (digits only, no formatting)."
+        }
+      },
+      "required": ["phone_number"]
+    }
+  },
+  "server": {
+    "url": "https://voice-ai-agent-patient-registration-system-production-b5a4.up.railway.app/vapi/check_existing_patient",
+    "timeoutSeconds": 10
+  }
+}

@@ -1,0 +1,92 @@
+{
+  "type": "function",
+  "function": {
+    "name": "create_patient",
+    "description": "Create a new patient registration record in the system. Only call this AFTER the caller has confirmed all their information is correct. Returns success with the patient ID, or an error message.",
+    "parameters": {
+      "type": "object",
+      "properties": {
+        "first_name": {
+          "type": "string",
+          "description": "Patient's first name (letters, hyphens, apostrophes only, 1-50 chars)."
+        },
+        "last_name": {
+          "type": "string",
+          "description": "Patient's last name (letters, hyphens, apostrophes only, 1-50 chars)."
+        },
+        "date_of_birth": {
+          "type": "string",
+          "description": "Date of birth in MM/DD/YYYY format. Must not be a future date."
+        },
+        "sex": {
+          "type": "string",
+          "enum": ["Male", "Female", "Other", "Decline to Answer"],
+          "description": "Patient's sex/gender identity."
+        },
+        "phone_number": {
+          "type": "string",
+          "description": "10-digit U.S. phone number (digits only)."
+        },
+        "email": {
+          "type": "string",
+          "description": "Email address (optional)."
+        },
+        "address_line_1": {
+          "type": "string",
+          "description": "Street address."
+        },
+        "address_line_2": {
+          "type": "string",
+          "description": "Apartment, suite, or unit number (optional)."
+        },
+        "city": {
+          "type": "string",
+          "description": "City name."
+        },
+        "state": {
+          "type": "string",
+          "description": "2-letter U.S. state abbreviation (e.g., CA, NY, TX)."
+        },
+        "zip_code": {
+          "type": "string",
+          "description": "5-digit ZIP or ZIP+4 (e.g., 12345 or 12345-6789)."
+        },
+        "insurance_provider": {
+          "type": "string",
+          "description": "Name of insurance company (optional)."
+        },
+        "insurance_member_id": {
+          "type": "string",
+          "description": "Insurance member/ID number, alphanumeric (optional)."
+        },
+        "preferred_language": {
+          "type": "string",
+          "description": "Preferred language, defaults to English if not provided (optional)."
+        },
+        "emergency_contact_name": {
+          "type": "string",
+          "description": "Name of emergency contact (optional)."
+        },
+        "emergency_contact_phone": {
+          "type": "string",
+          "description": "Emergency contact's 10-digit U.S. phone number (optional)."
+        }
+      },
+      "required": [
+        "first_name",
+        "last_name",
+        "date_of_birth",
+        "sex",
+        "phone_number",
+        "address_line_1",
+        "city",
+        "state",
+        "zip_code"
+      ]
+    }
+  },
+  "server": {
+    "url": "https://voice-ai-agent-patient-registration-system-production-b5a4.up.railway.app/vapi/create_patient",
+    "timeoutSeconds": 10
+  }
+}

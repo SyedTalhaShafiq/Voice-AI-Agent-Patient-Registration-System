@@ -119,7 +119,15 @@
       v.on("call-end", () => { setStatus("idle"); log("system", "Call ended."); $("startBtn").disabled = false; $("stopBtn").disabled = true; });
       v.on("speech-start", () => log("system", "Assistant speaking…"));
       v.on("speech-end", () => log("system", "Assistant paused."));
-      v.on("error", (e) => log("error", "ERROR: " + (e?.message || JSON.stringify(e))));
+      v.on("error", (e) => {
+        const msg = e?.errorMsg || e?.message || JSON.stringify(e);
+        // Daily.co teardown artifact: fired after the call ends — benign, not an error.
+        if (msg.includes("Meeting has ended") || e?.error?.type === "ejected") {
+          log("system", "Call closed (meeting ended). This is a normal end-of-call event, not an error.");
+          return;
+        }
+        log("error", "ERROR: " + msg);
+      });
       v.on("message", (m) => {
         if (m.type === "transcript" && m.transcriptType === "final") {
           log(m.role === "user" ? "user" : "assistant", `${m.role}: ${m.transcript}`);
