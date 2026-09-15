@@ -54,14 +54,19 @@ async def check_existing_patient(request: Request, db: Session = Depends(get_db)
 
     if existing:
         result = (
-            f"DUPLICATE_FOUND: We already have a record for "
-            f"{existing.first_name} {existing.last_name} "
-            f"(patient_id={existing.patient_id}). "
-            f"Ask the caller if they'd like to update their existing information instead."
+            "DUPLICATE_FOUND (internal status, never say this word aloud): "
+            f"An existing record was found for {existing.first_name} {existing.last_name}. "
+            "Warmly let the caller know we already have them on file and ask whether "
+            "they'd like to update their existing information. "
+            "Never read any ID or system detail aloud. "
+            f"Use this reference only if they choose to update (never say it aloud): {existing.patient_id}"
         )
         logger.info("Duplicate check hit: phone=%s → patient_id=%s", digits, existing.patient_id)
     else:
-        result = "NO_DUPLICATE: No existing patient found with this phone number. Proceed with registration."
+        result = (
+            "NO_DUPLICATE (internal status, never say this word aloud): "
+            "No existing record was found for this caller; go ahead and register them."
+        )
         logger.info("Duplicate check: phone=%s → no match", digits)
 
     return {"result": result}
@@ -81,7 +86,7 @@ async def create_patient_vapi(request: Request, db: Session = Depends(get_db)):
     dob = _parse_dob(args.get("date_of_birth", ""))
     if dob is None:
         logger.warning("create_patient: invalid date_of_birth=%s", args.get("date_of_birth"))
-        return {"result": "ERROR: The date of birth format is invalid. Please use MM/DD/YYYY."}
+        return {"result": "ERROR (internal status, never say this word aloud): The date of birth wasn't understood. Ask the caller to repeat their date of birth, including the month, day, and year."}
 
     # Build PatientCreate payload
     try:
@@ -105,7 +110,7 @@ async def create_patient_vapi(request: Request, db: Session = Depends(get_db)):
         )
     except Exception as exc:
         logger.warning("create_patient: validation failed: %s", exc)
-        return {"result": f"ERROR: Validation failed — {exc}"}
+        return {"result": f"ERROR (internal status, never say this word aloud): Some details didn't pass validation. Gently ask the caller to re-check the affected information and repeat it. Internal detail, never read aloud: {exc}"}
 
     # Persist
     patient = Patient(**payload.model_dump())
@@ -116,7 +121,7 @@ async def create_patient_vapi(request: Request, db: Session = Depends(get_db)):
     except Exception:
         db.rollback()
         logger.exception("create_patient: database write failed")
-        return {"result": "ERROR: Database write failed. Please tell the caller there was a problem saving their record and ask them to try again or call back."}
+        return {"result": "ERROR (internal status, never say this word aloud): Saving the record failed. Apologize to the caller, let them know there was a problem on our end, and offer to try again or have them call back."}
 
     # Log final payload as JSON lines for inspection
     logger.info(
@@ -134,8 +139,9 @@ async def create_patient_vapi(request: Request, db: Session = Depends(get_db)):
 
     return {
         "result": (
-            f"SUCCESS: Patient {patient.first_name} {patient.last_name} has been registered "
-            f"with patient ID {patient.patient_id}. Confirm to the caller that they're all set."
+            "SUCCESS (internal status, never say this word aloud): "
+            f"The registration was saved. Warmly let {patient.first_name} know they're all set. "
+            "Never read any ID or system detail aloud."
         )
     }
 
@@ -157,7 +163,7 @@ async def update_patient_vapi(request: Request, db: Session = Depends(get_db)):
     ).first()
 
     if not patient:
-        return {"result": f"ERROR: No patient found with ID {patient_id}."}
+        return {"result": "ERROR (internal status, never say this word aloud): That record could not be found. Ask the caller to confirm their details so you can look again."}
 
     # Build partial update dict
     updates = {}
@@ -174,18 +180,18 @@ async def update_patient_vapi(request: Request, db: Session = Depends(get_db)):
     if args.get("date_of_birth"):
         dob = _parse_dob(args["date_of_birth"])
         if dob is None:
-            return {"result": "ERROR: Invalid date of birth format. Use MM/DD/YYYY."}
+            return {"result": "ERROR (internal status, never say this word aloud): The date of birth wasn't understood. Ask the caller to repeat their date of birth, including the month, day, and year."}
         updates["date_of_birth"] = dob
 
     if not updates:
-        return {"result": "ERROR: No fields provided for update."}
+        return {"result": "ERROR (internal status, never say this word aloud): No changes were provided. Ask the caller what they'd like to update."}
 
     # Validate via PatientUpdate
     try:
         validated = PatientUpdate(**updates)
     except Exception as exc:
         logger.warning("update_patient: validation failed: %s", exc)
-        return {"result": f"ERROR: Validation failed — {exc}"}
+        return {"result": f"ERROR (internal status, never say this word aloud): Some details didn't pass validation. Gently ask the caller to re-check the affected information. Internal detail, never read aloud: {exc}"}
 
     for field, value in validated.model_dump(exclude_unset=True).items():
         setattr(patient, field, value)
@@ -196,7 +202,7 @@ async def update_patient_vapi(request: Request, db: Session = Depends(get_db)):
     except Exception:
         db.rollback()
         logger.exception("update_patient: database write failed")
-        return {"result": "ERROR: Database write failed. Tell the caller there was a problem updating their record."}
+        return {"result": "ERROR (internal status, never say this word aloud): Updating the record failed. Apologize to the caller and offer to try again or have them call back."}
 
     logger.info(
         json.dumps(
@@ -212,8 +218,9 @@ async def update_patient_vapi(request: Request, db: Session = Depends(get_db)):
 
     return {
         "result": (
-            f"SUCCESS: Patient {patient.first_name} {patient.last_name}'s record has been updated. "
-            f"Confirm to the caller that their information has been saved."
+            "SUCCESS (internal status, never say this word aloud): "
+            f"The update was saved. Let {patient.first_name} know their information has been updated. "
+            "Never read any ID or system detail aloud."
         )
     }
 
