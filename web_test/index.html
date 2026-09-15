@@ -54,22 +54,7 @@
   <p class="sub">Talk to the patient-intake assistant in your browser (mic + WebRTC) — no phone call needed.</p>
 
   <div class="card">
-    <strong>1. Configuration</strong>
-    <p class="hint">
-      Get these from the Vapi dashboard: <b>Public Key</b> under API Keys (client-side, safe for browser),
-      and your <b>Assistant ID</b>. They are saved only in this browser's <code>localStorage</code> — never committed.
-    </p>
-    <label for="publicKey">Vapi Public Key</label>
-    <input id="publicKey" type="text" placeholder="pk_xxxxxxxx-xxxx-xxxx-xxxx-xxxxxxxxxxxx" autocomplete="off" />
-    <label for="assistantId">Assistant ID</label>
-    <input id="assistantId" type="text" placeholder="xxxxxxxx-xxxx-xxxx-xxxx-xxxxxxxxxxxx" autocomplete="off" />
-    <div class="row">
-      <button id="saveCfg">Save config</button>
-    </div>
-  </div>
-
-  <div class="card">
-    <strong>2. Call</strong>
+    <strong>1. Call</strong>
     <span class="status"><span id="dot" class="dot"></span><span id="statusText">idle</span></span>
     <div class="row">
       <button id="startBtn">▶ Start Call</button>
@@ -82,7 +67,7 @@
   </div>
 
   <div class="card">
-    <strong>3. Live transcript &amp; tool calls</strong>
+    <strong>2. Live transcript &amp; tool calls</strong>
     <p class="hint">Watch <span class="t-tool">tool calls</span> fire (check_existing_patient / create_patient / update_patient) — cross-check against your backend logs and <code>/patients</code>.</p>
     <div id="log"></div>
   </div>
@@ -93,15 +78,7 @@
     const $ = (id) => document.getElementById(id);
     const logEl = $("log");
     let vapi = null;
-
-    // ── config persistence (localStorage, no hardcoded secrets) ──
-    $("publicKey").value = localStorage.getItem("vapi_public_key") || "";
-    $("assistantId").value = localStorage.getItem("vapi_assistant_id") || "";
-    $("saveCfg").onclick = () => {
-      localStorage.setItem("vapi_public_key", $("publicKey").value.trim());
-      localStorage.setItem("vapi_assistant_id", $("assistantId").value.trim());
-      log("system", "Config saved to localStorage.");
-    };
+    let vapiConfig = { publicKey: "", assistantId: "" };
 
     function log(kind, msg) {
       const div = document.createElement("div");
@@ -111,6 +88,25 @@
       logEl.appendChild(div);
       logEl.scrollTop = logEl.scrollHeight;
     }
+
+    // ── config comes from the server, which reads Railway env vars
+    //    (VAPI_PUBLIC_KEY / VAPI_ASSISTANT_ID) — nothing is typed or stored here.
+    async function loadConfig() {
+      try {
+        const res = await fetch("/vapi-config");
+        vapiConfig = await res.json();
+        if (!vapiConfig.publicKey || !vapiConfig.assistantId) {
+          log("error", "VAPI_PUBLIC_KEY / VAPI_ASSISTANT_ID are not set on the server. Set them as environment variables and redeploy.");
+          $("startBtn").disabled = true;
+        } else {
+          log("system", "Vapi config loaded from server environment variables.");
+        }
+      } catch (e) {
+        log("error", "Failed to load /vapi-config: " + (e?.message || e));
+        $("startBtn").disabled = true;
+      }
+    }
+    loadConfig();
 
     function setStatus(state) {
       const dot = $("dot"), txt = $("statusText");
@@ -138,9 +134,9 @@
     }
 
     $("startBtn").onclick = async () => {
-      const key = ($("publicKey").value || "").trim();
-      const assistant = ($("assistantId").value || "").trim();
-      if (!key || !assistant) { log("error", "Enter both Public Key and Assistant ID, then Save config."); return; }
+      const key = vapiConfig.publicKey;
+      const assistant = vapiConfig.assistantId;
+      if (!key || !assistant) { log("error", "Vapi config missing. Set VAPI_PUBLIC_KEY and VAPI_ASSISTANT_ID on the server."); return; }
       try {
         setStatus("connecting");
         log("system", "Requesting microphone & connecting to Vapi…");

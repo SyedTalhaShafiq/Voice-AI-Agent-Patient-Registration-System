@@ -11,6 +11,7 @@ from app.database import Base, SessionLocal, engine
 from app.api.routes import router as patient_router
 from app.vapi.tools import router as vapi_router
 from app.seed import seed_patients
+from app.config import settings
 
 # ── logging setup ────────────────────────────────────────────────────
 # Structured JSON lines to stdout for easy inspection of call payloads.
@@ -74,3 +75,16 @@ _WEB_TEST_FILE = os.path.join(
 @app.get("/test", tags=["meta"], include_in_schema=False)
 def voice_test_client():
     return FileResponse(_WEB_TEST_FILE)
+
+
+@app.get("/vapi-config", tags=["meta"], include_in_schema=False)
+def vapi_config():
+    """
+    Client-safe Vapi config for the /test browser voice client.
+    Values come from Railway (or local .env) environment variables
+    (VAPI_PUBLIC_KEY, VAPI_ASSISTANT_ID) — never hardcoded or typed by hand.
+    """
+    return {
+        "publicKey": settings.vapi_public_key,
+        "assistantId": settings.vapi_assistant_id,
+    }
