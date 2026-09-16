@@ -1,4 +1,4 @@
-# CareCloud — Voice AI Patient Registration System
+# Voice AI Patient Registration System
 
 A **Voice AI patient intake system** built with **Vapi** and **FastAPI**. Callers (or browser users) register as patients through natural conversation with an AI voice agent — no IVR menus, no rigid scripts. The agent collects demographics, validates fields, detects duplicates, and saves records to a database in real time.
 
