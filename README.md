@@ -1,55 +1,85 @@
 # CareCloud — Voice AI Patient Registration System
 
-A take-home technical assessment for a **Voice AI / Conversational AI Engineer** role. This system pairs a **Vapi-powered voice agent** with a **Python/FastAPI backend** to let callers register as patients over the phone using natural conversation — no IVR menus, no rigid scripts.
+A **Voice AI patient intake system** built with **Vapi** and **FastAPI**. Callers (or browser users) register as patients through natural conversation with an AI voice agent — no IVR menus, no rigid scripts. The agent collects demographics, validates fields, detects duplicates, and saves records to a database in real time.
+
+> **Live demo:** [`https://voice-ai-agent-patient-registration-system-production-b5a4.up.railway.app`](https://voice-ai-agent-patient-registration-system-production-b5a4.up.railway.app)
+>
+> **Browser call demo (no phone needed):** [`/test`](https://voice-ai-agent-patient-registration-system-production-b5a4.up.railway.app/test)
+>
+> **API docs:** [`/docs`](https://voice-ai-agent-patient-registration-system-production-b5a4.up.railway.app/docs)
+
+---
+
+## 🎙️ How to Talk to the Agent (No Phone Required)
+
+Since a US phone number is not available in all regions, the project ships a **browser-based voice client** that connects to the same live Vapi assistant using WebRTC — your microphone replaces the phone.
+
+### Steps
+
+1. Open the test page:
+   ```
+   https://voice-ai-agent-patient-registration-system-production-b5a4.up.railway.app/test
+   ```
+2. Click **▶ Start Call** — your browser will ask for microphone permission, grant it.
+3. Speak naturally. The assistant greets you and collects your patient information.
+4. Watch the **live transcript** panel — it shows every utterance, tool call fired, and assistant response.
+5. After the call, verify the patient record was saved:
+   ```
+   https://voice-ai-agent-patient-registration-system-production-b5a4.up.railway.app/debug/patients
+   ```
+
+> **Note:** The `/test` page reads Vapi credentials securely from server-side environment variables — nothing is hardcoded or stored in the browser.
 
 ---
 
 ## Architecture
 
 ```
-┌────────────────┐         ┌──────────────────────────────────┐
-│   Caller       │  voice  │            Vapi                   │
-│  (phone)       │◄───────►│  Telephony + STT/TTS + LLM       │
-└────────────────┘         │  (hosts the voice assistant)      │
-                           └──────────┬───────────────────────┘
-                                      │ HTTPS tool calls
-                                      ▼
-                           ┌──────────────────────────┐
-                           │   FastAPI Backend         │
-                           │                          │
-                           │  ┌─────────────────────┐ │
-                           │  │ REST API /patients   │ │  ← queryable by anyone
-                           │  └─────────────────────┘ │
-                           │  ┌─────────────────────┐ │
-                           │  │ Vapi Tool Handlers   │ │  ← called by Vapi mid-call
-                           │  └─────────────────────┘ │
-                           └────────────┬─────────────┘
-                                        │
-                                        ▼
-                           ┌──────────────────────┐
-                           │  SQLite (patients.db) │
-                           └──────────────────────┘
+┌─────────────────────┐         ┌──────────────────────────────────────┐
+│  Browser /test page │  WebRTC │              Vapi                     │
+│  (mic + WebRTC)     │◄───────►│  Telephony + STT/TTS + LLM           │
+│                     │         │  (hosts the voice assistant)          │
+│  ─ ─ OR ─ ─         │         └──────────┬───────────────────────────┘
+│  Phone call         │  voice             │ HTTPS tool calls (POST /vapi)
+└─────────────────────┘                    ▼
+                                ┌──────────────────────────┐
+                                │   FastAPI Backend         │
+                                │   (Railway)               │
+                                │  ┌─────────────────────┐ │
+                                │  │ REST API /patients   │ │  ← CRUD
+                                │  └─────────────────────┘ │
+                                │  ┌─────────────────────┐ │
+                                │  │ Vapi Webhook /vapi   │ │  ← called mid-call
+                                │  └─────────────────────┘ │
+                                └────────────┬─────────────┘
+                                             │
+                                             ▼
+                                ┌──────────────────────┐
+                                │  SQLite (patients.db) │
+                                └──────────────────────┘
 ```
 
 **Separation of concerns:**
 - `app/models/` — SQLAlchemy ORM (data layer)
 - `app/schemas/` — Pydantic validation (validation layer)
-- `app/api/` — REST endpoints (public API)
-- `app/vapi/` — Tool/webhook handlers (Vapi integration)
-- `vapi_prompt.md` — The assistant's system prompt (prompt engineering artifact)
-- `vapi_tool_schemas.json` — Tool definitions to paste into Vapi dashboard
+- `app/api/` — REST CRUD endpoints (public API)
+- `app/vapi/` — Vapi webhook + tool handlers (Vapi integration)
+- `app/debug.py` — DB verification endpoint
+- `vapi_prompt.md` — The assistant's system prompt (prompt engineering)
+- `vapi_tool_schemas.json` — Tool definitions for Vapi dashboard
 
 ---
 
-## Tech Stack & Justification
+## Tech Stack
 
 | Choice | Why |
 |---|---|
-| **Python + FastAPI** | Fast to build, Pydantic for validation, auto-generated `/docs` for reviewers, async-ready |
-| **SQLite** | Zero setup, single-file DB, perfect for a 3-hour demo. **Production note:** swap to PostgreSQL for concurrency, durability, and proper enum types |
-| **SQLAlchemy** | Industry-standard ORM, clean separation, easy migration path to Postgres |
-| **Vapi** | Handles telephony, STT, TTS, and LLM orchestration in one platform; server-side tool calling fits this architecture cleanly |
-| **pytest + httpx** | Standard Python testing stack; httpx provides the `TestClient` for FastAPI |
+| **Python + FastAPI** | Fast to build, Pydantic validation, auto-generated `/docs`, async-ready |
+| **SQLite** | Zero setup, single-file DB for demo. **Production:** swap to PostgreSQL |
+| **SQLAlchemy** | Industry-standard ORM, clean migration path to Postgres |
+| **Vapi** | Handles telephony, STT, TTS, and LLM orchestration in one platform |
+| **Railway** | One-command deployment, auto-builds from GitHub, public URL |
+| **pytest + httpx** | Standard Python testing stack with FastAPI `TestClient` |
 
 ---
 
@@ -60,93 +90,230 @@ CareCloud/
 ├── app/
 │   ├── __init__.py
 │   ├── main.py              # App entry point, logging, table creation
-│   ├── config.py             # Settings from .env
-│   ├── database.py           # SQLAlchemy engine + session
-│   ├── seed.py               # Demo patient seed data
+│   ├── config.py            # Settings from .env / environment variables
+│   ├── database.py          # SQLAlchemy engine + session
+│   ├── debug.py             # Debug endpoint: GET /debug/patients
+│   ├── seed.py              # Demo patient seed data
 │   ├── models/
-│   │   └── patient.py        # SQLAlchemy Patient model
+│   │   └── patient.py       # SQLAlchemy Patient model
 │   ├── schemas/
-│   │   └── patient.py        # Pydantic schemas + response envelope
+│   │   └── patient.py       # Pydantic schemas + response envelope
 │   ├── api/
-│   │   └── routes.py         # REST CRUD endpoints
+│   │   └── routes.py        # REST CRUD endpoints
 │   └── vapi/
-│       ├── schemas.py        # Vapi request/response models
-│       └── tools.py          # Vapi tool-call handlers
+│       ├── schemas.py       # Vapi request/response models
+│       └── tools.py         # Vapi webhook dispatcher + tool handlers
+├── scripts/
+│   └── setup_vapi.py        # One-command Vapi tool registration script
 ├── tests/
-│   ├── conftest.py           # pytest fixtures
-│   └── test_api.py           # API + Vapi tool tests
-├── vapi_prompt.md            # Full system prompt for Vapi assistant
-├── vapi_tool_schemas.json    # Tool JSON schemas for Vapi config
+│   ├── conftest.py          # pytest fixtures
+│   └── test_api.py          # API + Vapi tool tests (36 tests)
+├── vapi_tools/
+│   ├── parameters_schema_check_existing_patient.json
+│   ├── parameters_schema_create_patient.json
+│   └── parameters_schema_update_patient.json
+├── web_test/
+│   └── index.html           # Browser voice client (no phone needed)
+├── vapi_prompt.md           # Full system prompt for Vapi assistant
+├── vapi_tool_schemas.json   # Tool definitions for Vapi dashboard
 ├── requirements.txt
+├── railway.json             # Railway deployment config
+├── Procfile
 ├── .env.example
-├── .gitignore
 └── README.md
 ```
 
 ---
 
-## Quick Start
+## Step-by-Step Setup Guide
 
-### 1. Prerequisites
+### Prerequisites
+
 - Python 3.11+
-- A Vapi account ([dashboard.vapi.ai](https://dashboard.vapi.ai))
+- A [Vapi account](https://dashboard.vapi.ai) (free tier works)
+- Git
 
-### 2. Setup
+---
+
+### Step 1 — Clone the repository
 
 ```bash
-# Clone / navigate to the project
-cd CareCloud
+git clone https://github.com/SyedTalhaShafiq/Voice-AI-Agent-Patient-Registration-System.git
+cd Voice-AI-Agent-Patient-Registration-System
+```
 
-# Create virtual environment
-python -m venv venv
-source venv/bin/activate        # Linux/Mac
-# venv\Scripts\activate         # Windows
+---
 
-# Install dependencies
+### Step 2 — Create a virtual environment
+
+```bash
+# Create
+python -m venv .venv
+
+# Activate — Windows PowerShell
+.venv\Scripts\Activate.ps1
+
+# Activate — Mac/Linux
+source .venv/bin/activate
+```
+
+---
+
+### Step 3 — Install dependencies
+
+```bash
 pip install -r requirements.txt
+```
 
-# Configure environment
+---
+
+### Step 4 — Configure environment variables
+
+```bash
 cp .env.example .env
-# Edit .env and add your VAPI_API_KEY
+```
 
-# Run the server
+Open `.env` and fill in your values:
+
+```env
+# Vapi PUBLIC key (used by the /test browser client to start calls)
+VAPI_API_KEY=your_vapi_public_key_here
+
+# Vapi Assistant ID
+ASSISTANT_API_KEY=your_vapi_assistant_id_here
+
+# Database — leave as SQLite for local dev
+DATABASE_URL=sqlite:///./patients.db
+
+DEBUG=false
+```
+
+> Find your keys at [dashboard.vapi.ai](https://dashboard.vapi.ai):
+> - **Public Key** → Account → API Keys
+> - **Assistant ID** → Assistants → your assistant → copy the ID from the URL
+
+---
+
+### Step 5 — Run the server locally
+
+```bash
 uvicorn app.main:app --reload --port 8000
 ```
 
-The API is now at `http://localhost:8000`. Interactive docs at `http://localhost:8000/docs`.
+- API: `http://localhost:8000`
+- Interactive docs: `http://localhost:8000/docs`
+- Browser voice client: `http://localhost:8000/test`
 
-### 3. Expose for Vapi (local development)
+The SQLite database and demo seed data are created automatically on first run.
 
-Vapi needs a public URL to call your tool endpoints. Use ngrok:
+---
+
+### Step 6 — (Local dev only) Expose your server to Vapi with ngrok
+
+Vapi needs a public HTTPS URL to deliver tool calls. Use ngrok for local development:
 
 ```bash
 ngrok http 8000
 ```
 
-Copy the `https://xxxx.ngrok-free.app` URL and replace `YOUR_DEPLOYED_URL` in `vapi_tool_schemas.json`.
+Copy the `https://xxxx.ngrok-free.app` URL — you'll use it as the Server URL in the next step.
 
-### 4. Configure Vapi Assistant & Tools
+> **Skip this step** if you're using the live Railway deployment — it's already public.
 
-You can configure Vapi either automatically via script or manually in the Dashboard:
+---
 
-#### Option A: Automated Configuration (Fastest)
-Run the setup script with your Vapi **Private API Key** (from [dashboard.vapi.ai/api-keys](https://dashboard.vapi.ai/api-keys)):
+### Step 7 — Register Vapi tools
+
+Run the setup script with your **Vapi Private API Key** (find it at [dashboard.vapi.ai/api-keys](https://dashboard.vapi.ai/api-keys) — different from the public key):
+
 ```bash
-python scripts/setup_vapi.py --api-key YOUR_PRIVATE_VAPI_KEY
+python scripts/setup_vapi.py --api-key YOUR_VAPI_PRIVATE_KEY
 ```
-This automatically registers the 3 tools with their schemas and URLs, attaches them to your assistant (`63210c5e-8720-4026-8641-1a10d0c0b508`), sets the Server URL, and syncs the system prompt.
 
-#### Option B: Manual Dashboard Configuration
-1. Log into [Vapi Dashboard](https://dashboard.vapi.ai)
-2. Open your Assistant:
-   - **System Prompt**: Copy and paste the entire prompt from [`vapi_prompt.md`](vapi_prompt.md).
-   - **Server URL**: Set to `https://voice-ai-agent-patient-registration-system-production-b5a4.up.railway.app/vapi`.
-3. Under **Tools**, create/edit each function tool:
-   - `check_existing_patient`: Copy schema from `vapi_tools/parameters_schema_check_existing_patient.json` into the Parameters editor.
-   - `create_patient`: Copy schema from `vapi_tools/parameters_schema_create_patient.json` into the Parameters editor.
-   - `update_patient`: Copy schema from `vapi_tools/parameters_schema_update_patient.json` into the Parameters editor.
-   - Set Server URL on each tool to `https://voice-ai-agent-patient-registration-system-production-b5a4.up.railway.app/vapi/<tool_name>` (or leave blank to inherit Assistant Server URL).
-4. Save the Assistant and test!
+This automatically:
+1. Creates/updates the 3 tools with their full JSON parameter schemas
+2. Sets the Server URL to your deployed endpoint
+3. Attaches the tools to your Vapi assistant
+4. Syncs the system prompt from `vapi_prompt.md`
+
+After running, refresh your [Vapi dashboard](https://dashboard.vapi.ai) and confirm each tool shows a populated **Parameters JSON** and correct **Server URL**.
+
+#### Manual alternative
+
+1. Open your Assistant in the [Vapi Dashboard](https://dashboard.vapi.ai)
+2. **System Prompt** → paste the contents of [`vapi_prompt.md`](vapi_prompt.md)
+3. **Server URL** → `https://voice-ai-agent-patient-registration-system-production-b5a4.up.railway.app/vapi`
+4. Under **Tools**, create each function tool and paste the matching schema from `vapi_tools/parameters_schema_*.json`
+
+---
+
+### Step 8 — Test the voice agent
+
+**Option A — Browser (recommended, no phone needed):**
+
+Open `http://localhost:8000/test`, click **▶ Start Call**, and speak to the agent.
+
+**Option B — Simulate a tool call via PowerShell:**
+
+```powershell
+$body = '{"assistantId":"test","toolCallList":[{"toolCallId":"t1","name":"check_existing_patient","arguments":{"phone_number":"+15551234567"}}]}'
+Invoke-RestMethod -Method POST -Uri "http://localhost:8000/vapi" -ContentType "application/json" -Body $body
+```
+
+---
+
+### Step 9 — Verify database persistence
+
+```powershell
+# List the most recent 20 patients
+Invoke-RestMethod -Uri "http://localhost:8000/debug/patients"
+
+# Look up a specific patient by phone number (digits only)
+Invoke-RestMethod -Uri "http://localhost:8000/debug/patients/15551234567"
+```
+
+---
+
+### Step 10 — Run the test suite
+
+```bash
+pytest tests/ -v
+```
+
+All 36 tests should pass. They cover:
+- Patient CRUD (create, read, update, soft-delete)
+- Field validation (name, DOB, state, ZIP, phone, sex, email)
+- Vapi webhook dispatcher (tool calls, lifecycle events, batch calls)
+- Duplicate detection, camelCase normalization, placeholder handling
+
+---
+
+## Live Deployment (Railway)
+
+The project is deployed at:
+
+```
+https://voice-ai-agent-patient-registration-system-production-b5a4.up.railway.app
+```
+
+| URL | Description |
+|---|---|
+| `/test` | **Browser voice client — click to call, no phone needed** |
+| `/docs` | Interactive Swagger API documentation |
+| `/health` | Health check |
+| `/patients` | REST CRUD for patients |
+| `/vapi` | Vapi webhook (tool calls + lifecycle events) |
+| `/debug/patients` | Quick DB viewer (last 20 patients) |
+
+### Deploy your own instance
+
+1. Fork the repo
+2. Create a new project on [Railway](https://railway.app)
+3. Connect your GitHub repo — Railway auto-detects Python and builds with Nixpacks
+4. Set environment variables in Railway:
+   - `VAPI_API_KEY` — your Vapi public key
+   - `ASSISTANT_API_KEY` — your Vapi assistant ID
+5. Railway deploys automatically on every push to `main`
 
 ---
 
@@ -154,15 +321,16 @@ This automatically registers the 3 tools with their schemas and URLs, attaches t
 
 | Method | Endpoint | Description |
 |---|---|---|
-| `GET` | `/patients` | List all non-deleted patients. Filters: `?last_name=`, `?date_of_birth=MM/DD/YYYY`, `?phone_number=` |
-| `GET` | `/patients/{id}` | Get one patient by UUID (404 if deleted) |
-| `POST` | `/patients` | Create patient (validates all fields, returns 201) |
+| `GET` | `/patients` | List all patients. Filters: `?last_name=`, `?phone_number=`, `?date_of_birth=` |
+| `GET` | `/patients/{id}` | Get one patient by UUID |
+| `POST` | `/patients` | Create a patient (validates all fields, returns 201) |
 | `PUT` | `/patients/{id}` | Partial update (only provided fields change) |
 | `DELETE` | `/patients/{id}` | Soft-delete (sets `deleted_at`, row remains) |
 | `GET` | `/health` | Health check |
-| `GET` | `/docs` | Interactive Swagger UI (auto-generated by FastAPI) |
+| `GET` | `/docs` | Interactive Swagger UI |
 
 All responses use a consistent envelope:
+
 ```json
 {
   "data": { ... },
@@ -174,42 +342,27 @@ All responses use a consistent envelope:
 
 ## Vapi Integration
 
-### Webhook & Tool Endpoints
+### Conversation Flow
+
+1. Caller starts a call (phone or browser `/test` page)
+2. Agent greets naturally — not IVR-style
+3. Collects required fields conversationally in logical groups
+4. Validates each field; re-prompts only on errors
+5. Offers optional fields (insurance, emergency contact, preferred language)
+6. **Reads back all info** and asks for confirmation
+7. Calls `check_existing_patient` silently to detect duplicates
+8. On confirmation: calls `create_patient` (or `update_patient` for duplicates)
+9. Relays success/failure in natural language
+10. Closes the call gracefully
+
+### Tool Endpoints
 
 | Endpoint | Purpose |
 |---|---|
-| `POST /vapi` | Universal webhook dispatcher for Assistant Server URL (handles `tool-calls` & lifecycle events) |
-| `POST /webhook` | Alias for universal webhook |
+| `POST /vapi` | Universal dispatcher — handles all Vapi tool calls + lifecycle events |
 | `POST /vapi/check_existing_patient` | Duplicate detection by phone number |
-| `POST /vapi/create_patient` | Persist a confirmed new patient |
-| `POST /vapi/update_patient` | Update an existing patient's record |
-
-### Conversation Flow
-
-1. Caller dials the Vapi-provisioned number
-2. Agent greets naturally (not IVR-style)
-3. Collects required fields conversationally in logical groups
-4. Validates each field, re-prompts only on errors
-5. Offers optional fields (insurance, emergency contact, language)
-6. **Reads back all info** and asks for confirmation
-7. Calls `check_existing_patient` to detect duplicates
-8. On confirmation, calls `create_patient` (or `update_patient` if duplicate)
-9. Relays success/failure to caller in natural language
-10. Closes the call gracefully
-
-### Prompt Engineering
-
-The full system prompt is documented in [`vapi_prompt.md`](vapi_prompt.md) with comments explaining each behavioral instruction:
-- Natural greeting (not robotic)
-- Grouped field collection
-- Field-level validation re-prompting
-- Optional fields: offer, don't force
-- Confirmation-before-save (critical)
-- Duplicate detection flow
-- Correction handling mid-conversation
-- Restart handling
-- Graceful error messaging
-- Call closing
+| `POST /vapi/create_patient` | Persist a new patient record |
+| `POST /vapi/update_patient` | Update an existing patient record |
 
 ---
 
@@ -218,47 +371,27 @@ The full system prompt is documented in [`vapi_prompt.md`](vapi_prompt.md) with 
 | Field | Type | Required | Validation |
 |---|---|---|---|
 | `patient_id` | UUID | Auto | Auto-generated |
-| `first_name` | String(50) | Yes | Letters, hyphens, apostrophes |
-| `last_name` | String(50) | Yes | Letters, hyphens, apostrophes |
-| `date_of_birth` | Date | Yes | Not future, not before 1900 |
-| `sex` | Enum | Yes | Male/Female/Other/Decline to Answer |
-| `phone_number` | String(20) | Yes | U.S. 10-digit |
-| `email` | String(255) | No | Valid email format |
-| `address_line_1` | String(255) | Yes | Non-empty |
-| `address_line_2` | String(255) | No | — |
-| `city` | String(100) | Yes | 1-100 chars |
-| `state` | String(2) | Yes | Valid 2-letter U.S. state |
-| `zip_code` | String(10) | Yes | 5-digit or ZIP+4 |
-| `insurance_provider` | String(255) | No | — |
-| `insurance_member_id` | String(255) | No | Alphanumeric + hyphens |
-| `preferred_language` | String(100) | No | Default: "English" |
-| `emergency_contact_name` | String(255) | No | — |
-| `emergency_contact_phone` | String(20) | No | U.S. 10-digit |
+| `first_name` | String(50) | ✅ | Letters, hyphens, apostrophes |
+| `last_name` | String(50) | ✅ | Letters, hyphens, apostrophes |
+| `date_of_birth` | Date | ✅ | Not future, not before 1900 |
+| `sex` | Enum | ✅ | Male / Female / Other / Decline to Answer |
+| `phone_number` | String(20) | ✅ | U.S. 10-digit |
+| `email` | String(255) | — | Valid email format |
+| `address_line_1` | String(255) | ✅ | Non-empty |
+| `address_line_2` | String(255) | — | — |
+| `city` | String(100) | ✅ | 1–100 chars |
+| `state` | String(2) | ✅ | Valid 2-letter U.S. abbreviation |
+| `zip_code` | String(10) | ✅ | 5-digit or ZIP+4 |
+| `insurance_provider` | String(255) | — | — |
+| `insurance_member_id` | String(255) | — | Alphanumeric + hyphens |
+| `preferred_language` | String(100) | — | Default: "English" |
+| `emergency_contact_name` | String(255) | — | — |
+| `emergency_contact_phone` | String(20) | — | U.S. 10-digit |
 | `created_at` | Timestamp | Auto | UTC |
-| `updated_at` | Timestamp | Auto | UTC, on modification |
-| `deleted_at` | Timestamp | Auto | Nullable, set on soft-delete |
+| `updated_at` | Timestamp | Auto | UTC, set on modification |
+| `deleted_at` | Timestamp | Auto | Nullable — set on soft-delete |
 
 **Seed data:** 2 demo patients (Maria Garcia, James O'Connor) are auto-inserted on first run.
-
----
-
-## Testing
-
-```bash
-# Run all tests
-pytest tests/ -v
-
-# Run with coverage (if pytest-cov installed)
-pytest tests/ -v --cov=app
-```
-
-Tests cover:
-- **Create:** happy path, optional fields, invalid name/DOB/state/ZIP/phone/sex/email
-- **Read:** by ID, nonexistent (404), list, filter by last_name/phone
-- **Update:** single field, multiple fields, nonexistent (404), invalid state
-- **Delete:** soft-delete, nonexistent (404), excluded from list
-- **Envelope:** success format, error format
-- **Vapi tools:** check duplicate (no match/match), create via Vapi, invalid data via Vapi, update via Vapi
 
 ---
 
@@ -266,39 +399,12 @@ Tests cover:
 
 | Variable | Required | Default | Description |
 |---|---|---|---|
-| `VAPI_API_KEY` | Yes | — | Vapi dashboard API key |
+| `VAPI_API_KEY` | Yes | — | Vapi **public** key (used by `/test` browser client) |
+| `ASSISTANT_API_KEY` | Yes | — | Vapi assistant ID |
 | `DATABASE_URL` | No | `sqlite:///./patients.db` | SQLAlchemy database URL |
 | `DEBUG` | No | `false` | Enable verbose SQL logging |
 
-All secrets are loaded from `.env` (gitignored). See `.env.example` for a template.
-
----
-
-## Logging
-
-All significant events are logged to **stdout** with timestamps:
-- Patient CRUD operations (create, update, delete)
-- Vapi tool calls (duplicate checks, creates, updates)
-- Completed call payloads as **JSON lines** for easy inspection
-- Database errors with full tracebacks
-
-Example log line:
-```
-2026-01-15T14:32:00 | INFO    | app.vapi.tools | {"event": "patient_created_via_vapi", "patient_id": "abc-123", ...}
-```
-
----
-
-## Deployment
-
-For the demo, deploy to any platform that provides a public URL:
-
-- **Railway:** `railway up` (auto-detects Python)
-- **Render:** connect repo, set build command `pip install -r requirements.txt`, start command `uvicorn app.main:app --host 0.0.0.0 --port $PORT`
-- **Fly.io:** `fly launch` then `fly deploy`
-- **ngrok** (local): `ngrok http 8000`
-
-After deploying, update the `server.url` in `vapi_tool_schemas.json` with your public URL and re-configure the Vapi assistant tools.
+All secrets are loaded from `.env` (gitignored). See `.env.example` for the template.
 
 ---
 
@@ -306,29 +412,26 @@ After deploying, update the `server.url` in `vapi_tool_schemas.json` with your p
 
 | Limitation | Impact | Mitigation |
 |---|---|---|
-| **SQLite concurrency** | Single-writer; not suitable for production | Documented; swap to Postgres for production |
-| **No authentication** | API is open | Acceptable for demo; would add JWT/API keys for production |
+| **SQLite concurrency** | Single-writer; not for production | Swap `DATABASE_URL` to PostgreSQL |
+| **No authentication** | API is open | Acceptable for demo; add JWT/API keys for production |
 | **No rate limiting** | Could be abused | Acceptable for demo scope |
-| **Dropped calls = no record** | If call drops before confirmation, nothing is persisted | This is a **design choice**: no partial records. Caller must call back |
-| **Phone normalization** | Only strips formatting and leading "1" | Sufficient for U.S. numbers; would add libphonenumber for international |
-| **No call recording/transcript storage** | Vapi handles this natively | Would add webhook to store transcripts in production |
-| **Soft-delete only** | Deleted records remain in DB | Acceptable; would add hard-delete/purge policy for production |
+| **Dropped calls = no record** | Call must complete before confirmation | Design choice: no partial records |
+| **Debug endpoint exposed** | `/debug/patients` is public | Remove `app/debug.py` before production |
 
 ---
 
-## Next Steps (if more time were available)
+## Next Steps (Production Roadmap)
 
-1. **Production database:** Migrate to PostgreSQL with proper indexes on `phone_number`, `last_name`, `date_of_birth`
-2. **Authentication:** Add API key middleware for REST endpoints
-3. **Call transcript logging:** Vapi webhook → store transcripts linked to patient records
-4. **Retry logic:** Add exponential backoff on DB writes
-5. **HIPAA considerations:** Audit logging, encryption at rest, access controls, BAA with hosting provider
-6. **Multi-language support:** Configure Vapi with bilingual prompts
-7. **EHR integration:** HL7/FHIR export of patient records
-8. **Analytics dashboard:** Registration completion rates, average call duration, field correction frequency
+1. **PostgreSQL** — Proper indexes on `phone_number`, `last_name`, `date_of_birth`
+2. **Authentication** — API key middleware for REST endpoints
+3. **Call transcript logging** — Vapi end-of-call webhook → store linked to patient records
+4. **HIPAA** — Audit logging, encryption at rest, BAA with hosting provider
+5. **Multi-language** — Bilingual Vapi prompts
+6. **EHR integration** — HL7/FHIR export
+7. **Analytics** — Registration completion rates, average call duration
 
 ---
 
 ## License
 
-This is a take-home assessment project. Not intended for production use.
+Take-home assessment project. Not intended for production use.
